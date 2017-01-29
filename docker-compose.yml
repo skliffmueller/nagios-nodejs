@@ -1,0 +1,18 @@
+version: '2'
+services:
+  nagios:
+    build: .
+    working_dir: /opt
+    ports:
+     - "8100:80"
+    depends_on:
+      - "web-db"
+      - "redis"
+  web-db:
+    image: "mongo:3.4.0"
+    ports:
+     - "27050:27017"
+  redis:
+    image: "redis:alpine"
+    ports:
+     - "6379:6379"

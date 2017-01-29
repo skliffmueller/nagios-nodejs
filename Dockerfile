@@ -1,6 +1,13 @@
 FROM ubuntu:16.04
 MAINTAINER Jason Rivers <jason@jasonrivers.co.uk>
 
+RUN apt-get update
+RUN apt-get install -y curl
+RUN curl -sL https://deb.nodesource.com/setup_6.x | bash -
+RUN apt-get install -y nodejs
+
+RUN update-alternatives --install /usr/bin/node node /usr/bin/nodejs 10
+
 ENV NAGIOS_HOME			/opt/nagios
 ENV NAGIOS_USER			nagios
 ENV NAGIOS_GROUP		nagios
@@ -163,11 +170,20 @@ RUN	cp /etc/services /var/spool/postfix/etc/
 
 RUN	rm -rf /etc/sv/getty-5
 
+RUN mkdir /opt/nagios/etc/objects/hosts
+RUN mkdir /opt/nagios/node
+
+COPY ./node /opt/nagios/node
+
 ADD nagios/nagios.cfg /opt/nagios/etc/nagios.cfg
 ADD nagios/cgi.cfg /opt/nagios/etc/cgi.cfg
 ADD nagios/templates.cfg /opt/nagios/etc/objects/templates.cfg
 ADD nagios/commands.cfg /opt/nagios/etc/objects/commands.cfg
 ADD nagios/localhost.cfg /opt/nagios/etc/objects/localhost.cfg
+COPY nagios/mongodb.cfg /opt/nagios/etc/objects/mongodb.cfg
+ADD nagios/resource.cfg /opt/nagios/etc/resource.cfg
+ADD nagiosgraph/datasetdb.conf /opt/nagiosgraph/etc/datasetdb.conf
+ADD nagiosgraph/labels.conf /opt/nagiosgraph/etc/labels.conf
 
 # Copy example config in-case the user has started with empty var or etc
 
@@ -193,6 +209,11 @@ RUN echo "ServerName nagiosdocker" > /etc/apache2/conf-available/servername.conf
 
 EXPOSE 80
 
-VOLUME "/opt/nagios/var" "/opt/nagios/etc" "/opt/nagios/libexec" "/var/log/apache2" "/usr/share/snmp/mibs" "/opt/Custom-Nagios-Plugins"
+#RUN chown -R nagios:nagios /opt/nagios
+#RUN chown -R nagios:nagios /var/log/apache2
+#RUN chown -R nagios:nagios /usr/share/snmp/mibs
+#RUN chown -R nagios:nagios /opt/Custom-Nagios-Plugins
+
+#VOLUME "/opt/nagios/var" "/opt/nagios/etc" "/opt/nagios/libexec" "/var/log/apache2" "/usr/share/snmp/mibs" "/opt/Custom-Nagios-Plugins"
 
 CMD [ "/usr/local/bin/start_nagios" ]
