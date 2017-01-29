@@ -1,26 +1,7 @@
 let MongoClient = require('mongodb').MongoClient
 
-let argvs = {};
-
-process.argv.forEach((val, index) => {
-  	if(val.charAt(0)=="-") {
-  		let key = "";
-  		if(val.charAt(1)=="-") {
-  			key = val.substr(2);
-  		} else { 
-  			key = val.substr(1);
-  		}
-
-  		let value = process.argv[index+1];
-
-	  	if(value.charAt(0)=="-") {
-	  		argvs[key] = true;
-	  	} else {
-	  		argvs[key] = value;
-	  	}
-
-  	}
-});
+let argvs = require('./lib/argv');
+let nagios = require('./lib/nagios');
 
 main();
 
@@ -31,13 +12,13 @@ function main() {
 	MongoClient.connect(argvs.connectionString, function(err, db) {
 		if(err) {
 			if(typeof err == 'string') {
-				return exit(2, err);
+				return nagios.exit(2, err);
 			}
 			try {
 				let string = JSON.stringify(err, null, 2);
-				exit(2, string)
+				nagios.exit(2, string)
 			} catch(e) {
-				exit(2, "Db connection failed, unable to parse error")
+				nagios.exit(2, "Db connection failed, unable to parse error")
 			}
 			return;
 		}
@@ -47,7 +28,7 @@ function main() {
 		if(argvs.action=="connection") {
 			db.close((err) => {
 				// Skip error
-				exit(0, "Connection successful");
+				nagios.exit(0, "Connection successful");
 			});
 		}
 	});
@@ -63,21 +44,90 @@ function stats(db) {
 	}
 	db.stats(options, (err, stat) => {
 		if(err) {
-			return handleError(err);
+			return nagios.handleError(err);
 		}
 		db.close((err) => {
 			try {
 				// label=value[UOM];[warn];[crit];[min];[max]
-				let value = stat.dataSize+"MB";
-				let warn = stat.storageSize*0.85;
-				let crit = stat.storageSize*0.90;
-				let min = 0;
-				let max = stat.storageSize;
-				let string = `Size: ${stat.dataSize}MB/${stat.storageSize}MB | mongodbSize=${value}MB;${warn};${crit};0;${max}\n`
+				let firstPerfData = nagios.perfData({
+					label:"mongodbSize",
+					value:Math.ceil(stat.dataSize*100)/100+"MB",
+					warn:Math.ceil(stat.storageSize*85)/100,
+					crit:Math.ceil(stat.storageSize*90)/100,
+					min:0,
+					max:Math.ceil(stat.storageSize*100)/100
+				});
+
+				let perfData = "";
+
+				perfData += nagios.perfData({
+					label:"mongodbIndex",
+					value:stat.indexes,
+					warn:0,
+					crit:0,
+					min:0,
+					max:0
+				})+"\n";
+
+				perfData += nagios.perfData({
+					label:"mongodbIndexSize",
+					value:Math.ceil(stat.indexSize*100)/100+"MB",
+					warn:0,
+					crit:0,
+					min:0,
+					max:0
+				})+"\n";
+
+				perfData += nagios.perfData({
+					label:"mongodbAvgObjSize",
+					value:Math.ceil(stat.avgObjSize*100)/100+"MB",
+					warn:0,
+					crit:0,
+					min:0,
+					max:0
+				})+"\n";
+
+				perfData += nagios.perfData({
+					label:"mongodbFileSize",
+					value:Math.ceil(stat.fileSize*100)/100+"MB",
+					warn:0,
+					crit:0,
+					min:0,
+					max:0
+				})+"\n";
+
+				perfData += nagios.perfData({
+					label:"mongodbObjects",
+					value:stat.objects,
+					warn:0,
+					crit:0,
+					min:0,
+					max:0
+				})+"\n";
+
+				perfData += nagios.perfData({
+					label:"mongodbViews",
+					value:stat.views,
+					warn:0,
+					crit:0,
+					min:0,
+					max:0
+				})+"\n";
+
+				perfData += nagios.perfData({
+					label:"mongodbCollections",
+					value:stat.collections,
+					warn:0,
+					crit:0,
+					min:0,
+					max:0
+				});
+
+				let string = `Size: ${stat.dataSize}MB/${stat.storageSize}MB | ${firstPerfData}\n | ${perfData}\n`
 				//let string = JSON.stringify(stat, null, 2);
-				exit(0, string)
+				nagios.exit(0, string)
 			} catch(e) {
-				exit(1, "No stats error, but no data?")
+				nagios.exit(1, "No stats error, but no data?")
 			}
 		})
 	})
@@ -106,16 +156,16 @@ function status(db) {
 	}
 	db.stats(options, (err, stat) => {
 		if(err) {
-			return handleError(err);
+			return nagios.handleError(err);
 		}
 		db.close((err) => {
 			try {
 				// label=value[UOM];[warn];[crit];[min];[max]
 				let string = `Size: ${stat.dataSize}MB/${stat.storageSize}MB \| mongodbSize=${stat.dataSize}MB;100;200;0;${stat.storageSize}\n`
 				//let string = JSON.stringify(stat, null, 2);
-				exit(0, string)
+				nagios.exit(0, string)
 			} catch(e) {
-				exit(1, "No stats error, but no data?")
+				nagios.exit(1, "No stats error, but no data?")
 			}
 		})
 	})
@@ -133,21 +183,4 @@ function status(db) {
 		"fileSize": 0,
 		"ok": 1
 	}*/
-}
-
-function handleError(err) {
-	if(typeof err == 'string') {
-		return exit(2, err);
-	}
-	try {
-		let string = JSON.stringify(err, null, 2);
-		exit(2, string)
-	} catch(e) {
-		exit(2, "Unable to parse error object")
-	}
-}
-
-function exit(code, message) {
-	process.stdout.write(message);
-	process.exit(code);
 }
